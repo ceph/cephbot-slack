@@ -336,7 +336,7 @@ def slack_parse(client: RTMClient, event: dict):
         show_cluster_id = True
         if CLUSTER == "self":
           show_cluster_id = False
-          channel_response = "Clusters: " + " ".join(CEPH_CLUSTERS.keys()) + "\nhttps://confluence.sie.sony.com/display/CGEI/Cephbot+Guide"
+          channel_response = "Clusters: " + " ".join(CEPH_CLUSTERS.keys()) + "\nhttps://github.com/ceph/cephbot-slack/"
         elif "ALIASES" in HELP_MSG:
           channel_response = HELP_MSG.replace("ALIASES", CEPH_CLUSTERS[CLUSTER])
         else:
