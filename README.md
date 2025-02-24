@@ -11,13 +11,12 @@ To set up the bot in Slack, you can use this manifest
 ```
 {
     "display_information": {
-        "name": "cephbot-firefly",
+        "name": "cephbot",
         "description": "Slack bot for Ceph",
-        "background_color": "#303030"
     },
     "features": {
         "bot_user": {
-            "display_name": "cephbot-firefly",
+            "display_name": "cephbot",
             "always_online": false
         }
     },
