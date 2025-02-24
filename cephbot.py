@@ -79,14 +79,10 @@ ALWAYS_THREAD = os.getenv('ALWAYS_THREAD', 'false').lower() in ('true', '1', 't'
 ALWAYS_SHOW_CLUSTER_ID = os.getenv('ALWAYS_SHOW_CLUSTER_ID', 'false').lower() in ('true', '1', 't')
 
 HELP = "help"
-AT_BOT = "<@" + SLACK_BOT_ID.lower() + ">"
+AT_BOT = f"<@{SLACK_BOT_ID.lower()}>"
 ERROR_PREFIX = "Something went wrong "
 
 CONNECTED_NOTIFICATION_CHANNELS = os.getenv('CONNECTED_NOTIFICATION_CHANNELS', None)
-
-# When reload is triggered, this value will be updated and the k8s health check will fail causing the pod to be restarted.
-RELOAD = "reload"
-reload = False
 
 slackApp = App(token=SLACK_BOT_TOKEN)
 handler = SocketModeHandler(slackApp, SLACK_APP_TOKEN)
@@ -96,9 +92,7 @@ log.setLevel(logging.ERROR)
 
 @flaskApp.route("/health", methods=["GET"])
 def cephbot_health():
-  if reload:
-    return make_response("Cephbot needs to reload configs", 503)
-  elif handler.client is not None and handler.client.is_connected():
+  if handler.client is not None and handler.client.is_connected():
     return make_response("OK", 200)
   else:
     return make_response("Cephbot is inactive", 503)
@@ -106,12 +100,10 @@ def cephbot_health():
 def ceph_command(CLUSTER, command, thread, modifier):
   ceph_conf = CEPH_CONF.replace("CLUSTER", CLUSTER)
   ceph_keyring = CEPH_KEYRING.replace("CLUSTER", CLUSTER).replace("CEPH_USER", CEPH_USER)
-  error_msg = ERROR_PREFIX + "while executing '" + command + "' on " + CLUSTER + "."
+  error_msg = f"{ERROR_PREFIX}while executing '{command}' on {CLUSTER}."
   return_error = None
   timeout = 5
-  BASH_PREFIX = "/bin/sh " + SCRIPTS_FOLDER + "/"
-  BASH_SUFFIX = " --conf " + ceph_conf + " --user " + CEPH_USER + " --keyring " + ceph_keyring
-  BASH_COMMAND = BASH_PREFIX + "COMMAND" + BASH_SUFFIX
+  BASH_COMMAND = f"/bin/sh {SCRIPTS_FOLDER}/COMMAND --conf {ceph_conf} --user {CEPH_USER} --keyring {ceph_keyring}"
   bash_command = None
   cmd = {"prefix":command, "format":"plain"}
   healthy = "HEALTH_OK"
@@ -130,19 +122,19 @@ def ceph_command(CLUSTER, command, thread, modifier):
     if result == 0:
       break
     else:
-      print("Unable to connect to the mon " + mon_ip + ":" + mon_port)
+      print(f"Unable to connect to the mon {mon_ip}:{mon_port}")
   if result != 0:
-    return ERROR_PREFIX + "while connecting to all of the mons. Please check the firewall.", None
+    return f"{ERROR_PREFIX}while connecting to all of the mons. Please check the firewall.", None
 
   try:
     # The timeout is currently ignored
     cluster.connect(timeout)
   except:
     print("Something prevented the connection to the Ceph cluster. Attempted using the following settings.")
-    print("CEPH_CONF: " + ceph_conf)
-    print("CEPH_USER: " + CEPH_USER)
-    print("CEPH_KEYRING: " + ceph_keyring)
-    return ERROR_PREFIX + "while connecting to " + CLUSTER + " using " + ceph_conf + ", " + CEPH_USER + ", " + ceph_keyring, None
+    print(f"CEPH_CONF: {ceph_conf}")
+    print(f"CEPH_USER: {CEPH_USER}")
+    print(f"CEPH_KEYRING: {ceph_keyring}")
+    return f"{ERROR_PREFIX}while connecting to {CLUSTER} using {ceph_conf}, {CEPH_USER}, {ceph_keyring}", None
 
   if command == "blocked requests":
     bash_command = BASH_COMMAND.replace("COMMAND","blocked_requests.sh")
@@ -153,7 +145,7 @@ def ceph_command(CLUSTER, command, thread, modifier):
     bash_command = BASH_COMMAND.replace("COMMAND","pool_io.sh")
     opt_pool = command.split("pool io")[1].strip().lower()
     if opt_pool:
-      bash_command += " --pool " + opt_pool
+      bash_command += f" --pool {opt_pool}"
   elif command == "health detail":
     bash_command = BASH_COMMAND.replace("COMMAND","health_detail.sh")
     healthy = "HEALTH_OK"
@@ -192,11 +184,11 @@ def ceph_command(CLUSTER, command, thread, modifier):
       elif item['type'] == 'osd' and item['status'] == 'down':
         osd = item['name']
         if not root == lastroot:
-          msg = msg + "\n" + root + "\n  " + host + "\n    " + osd
+          msg += f"\n{root}\n  {host}\n    {osd}"
         elif not host == lasthost:
-          msg = msg + "\n  " + host + "\n    " + osd
+          msg += f"\n  {host}\n    {osd}"
         else:
-          msg = msg + ", " + osd
+          msg += f", {osd}"
         lastroot = root
         lasthost = host
     output = msg.strip()
@@ -231,7 +223,6 @@ def slack_parse(event: dict, say):
   events_run = False
   modifier = None
   find_id = False
-  reload_print = True
   clusters_matched = []
 
   if 'thread_ts' in event:
@@ -274,8 +265,6 @@ def slack_parse(event: dict, say):
 
   if not events_run and not find_id:
     if not command or command == HELP:
-      clusters_matched.append("self")
-    elif command == RELOAD:
       clusters_matched.append("self")
     else:
       cluster_match = False
@@ -339,21 +328,13 @@ def slack_parse(event: dict, say):
         show_cluster_id = True
         if CLUSTER == "self":
           show_cluster_id = False
-          channel_response = "Clusters: " + " ".join(CEPH_CLUSTERS.keys()) + "\n" + HELP_URL
+          channel_response = f"Clusters: {' '.join(CEPH_CLUSTERS.keys())}\n{HELP_URL}"
         elif "ALIASES" in HELP_MSG:
           channel_response = HELP_MSG.replace("ALIASES", CEPH_CLUSTERS[CLUSTER])
         else:
           channel_response = HELP_MSG
-      elif command == RELOAD:
-        # Only print reload information once
-        if reload_print:
-          channel_response = "Reloading settings for: " + " ".join(CEPH_CLUSTERS.keys())
-          user_response = None
-          globals()["reload"] = True
-          reload_print = False
-          show_cluster_id = False
       elif find_id or command == "whoami":
-        channel_response = "You are " + user
+        channel_response = f"You are {user}"
         user_response = None
       elif command in "alias aliases".split():
         user_response = None
@@ -363,29 +344,27 @@ def slack_parse(event: dict, say):
         try:
           # Slack settings
           channel_response = "### Slack Settings ###"
-          channel_response += "\nSLACK_BOT_ID: " + str(SLACK_BOT_ID)
-          channel_response += "\nSLACK_USER_IDS: " + str(SLACK_USER_IDS)
-          channel_response += "\nSLACK_CHANNEL_IDS: " + str(SLACK_CHANNEL_IDS)
-          channel_response += "\nALWAYS_THREAD: " + str(ALWAYS_THREAD)
-          channel_response += "\nALWAYS_SHOW_CLUSTER_ID: " + str(ALWAYS_SHOW_CLUSTER_ID)
+          channel_response += f"\nSLACK_BOT_ID: {str(SLACK_BOT_ID)}"
+          channel_response += f"\nSLACK_USER_IDS: {str(SLACK_USER_IDS)}"
+          channel_response += f"\nSLACK_CHANNEL_IDS: {str(SLACK_CHANNEL_IDS)}"
+          channel_response += f"\nALWAYS_THREAD: {str(ALWAYS_THREAD)}"
+          channel_response += f"\nALWAYS_SHOW_CLUSTER_ID: {str(ALWAYS_SHOW_CLUSTER_ID)}"
           # Ceph settings
           channel_response += "\n\n### Ceph Settings ###"
-          channel_response += "\nCEPH_CONF: " + str(CEPH_CONF).replace("CLUSTER", CLUSTER)
-          channel_response += "\nCEPH_USER: " + str(CEPH_USER)
-          channel_response += "\nCEPH_KEYRING: " + str(CEPH_KEYRING).replace("CLUSTER", CLUSTER).replace("CEPH_USER", CEPH_USER)
-          channel_response += "\nAliases: " + str(CEPH_CLUSTERS[CLUSTER])
-          channel_response += "\nSCRIPTS_FOLDER: " + str(SCRIPTS_FOLDER)
-          channel_response += "\nRELOAD: " + str(RELOAD)
-          channel_response += "\nreload: " + str(reload)
+          channel_response += f"\nCEPH_CONF: {str(CEPH_CONF).replace('CLUSTER', CLUSTER)}"
+          channel_response += f"\nCEPH_USER: {str(CEPH_USER)}"
+          channel_response += f"\nCEPH_KEYRING: {str(CEPH_KEYRING).replace('CLUSTER', CLUSTER).replace('CEPH_USER', CEPH_USER)}"
+          channel_response += f"\nAliases: {str(CEPH_CLUSTERS[CLUSTER])}"
+          channel_response += f"\nSCRIPTS_FOLDER: {str(SCRIPTS_FOLDER)}"
           # Events settings
           channel_response += "\n\n### Events Settings ###"
-          channel_response += "\nEVENTS_ENABLED: " + str(EVENTS_ENABLED)
+          channel_response += f"\nEVENTS_ENABLED: {str(EVENTS_ENABLED)}"
           if EVENTS_ENABLED:
-            channel_response += "\nEVENTS_SLACK_IDS: " + str(EVENTS_SLACK_IDS)
-            channel_response += "\nEVENTS_SLACK_CHANNELS: " + str(EVENTS_SLACK_CHANNELS)
-            channel_response += "\nEVENTS_DEBUG: " + str(EVENTS_DEBUG)
-            channel_response += "\nEVENTS_TRIGGER: " + str(EVENTS_TRIGGER)
-            channel_response += "\nEVENTS_COMMANDS: " + str(EVENTS_COMMANDS)
+            channel_response += f"\nEVENTS_SLACK_IDS: {str(EVENTS_SLACK_IDS)}"
+            channel_response += f"\nEVENTS_SLACK_CHANNELS: {str(EVENTS_SLACK_CHANNELS)}"
+            channel_response += f"\nEVENTS_DEBUG: {str(EVENTS_DEBUG)}"
+            channel_response += f"\nEVENTS_TRIGGER: {str(EVENTS_TRIGGER)}"
+            channel_response += f"\nEVENTS_COMMANDS: {str(EVENTS_COMMANDS)}"
         except:
           print(channel_response)
       else:
@@ -399,10 +378,10 @@ def slack_parse(event: dict, say):
           error = True
 
       if channel_response and not ( event['channel_type'] == "im" and channel_response == TOO_LONG_MSG ):
-        channel_response = "```" + channel_response + "```"
+        channel_response = f"```{channel_response}```"
         if show_cluster_id:
-          if not channel_response.startswith("```" + CLUSTER):
-            channel_response = CLUSTER + " " + command + "\n" + channel_response
+          if not channel_response.startswith(f"```{CLUSTER}"):
+            channel_response = f"{CLUSTER}: {command}\n{channel_response}"
         if thread:
           say(
             channel=channel,
@@ -418,14 +397,14 @@ def slack_parse(event: dict, say):
           )
 
       if user_response:
-        user_response = "```" + user_response + "```"
+        user_response = f"```{user_response}```"
         if channel_response and channel_response == TOO_LONG_MSG and response:
           thread = response['ts']
         else:
           thread = None
         if show_cluster_id:
-          if not user_response.startswith("```" + CLUSTER):
-            user_response = CLUSTER + ": " + command + "\n" + user_response
+          if not user_response.startswith(f"```{CLUSTER}"):
+            user_response = f"{CLUSTER}: {command}\n{user_response}"
         if thread:
           say(
             channel=channel,
@@ -453,11 +432,11 @@ if __name__ == "__main__":
         try:
           slackApp.client.chat_postMessage(
             channel=connected_notification_channel,
-            text="Connected: " + " ".join(CEPH_CLUSTERS.keys()),
+            text=f"Connected: {' '.join(CEPH_CLUSTERS.keys())}",
             as_user=True
           )
         except:
-          print("Failed to send message to " + connected_notification_channel)
+          print(f"Failed to send message to {connected_notification_channel}")
     flaskApp.run(port=FLASK_PORT)
   else:
     print("Connection failed or disconnected.")
