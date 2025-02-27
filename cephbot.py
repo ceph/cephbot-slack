@@ -206,9 +206,9 @@ def ceph_command(CLUSTER, command, thread, modifier):
     return error_msg, None
   elif modifier == "errors_only" and output == healthy:
     return None, None
-  elif modifier_split[0] == GREP and modifier_split[1] not in output.lower():
+  elif modifier_split[0] == GREP and modifier_split[1] not in output.lower() and not output.startswith(ERROR_PREFIX):
     return None, None
-  elif modifier_split[0] == GREPV and modifier_split[1] in output.lower():
+  elif modifier_split[0] == GREPV and modifier_split[1] in output.lower() and not output.startswith(ERROR_PREFIX):
     return None, None
   elif ( len(output.splitlines()) < int(TOO_LONG) or thread ):
     return output, None
@@ -371,7 +371,7 @@ def slack_parse(event: dict, say):
         channel_response, user_response = ceph_command(CLUSTER, command, thread, modifier)
       response = None
 
-      if channel_response.startswith(ERROR_PREFIX):
+      if channel_response and channel_response.startswith(ERROR_PREFIX):
         if error:
           continue
         else:
