@@ -56,6 +56,7 @@ ceph_cluster_ids_regex = re.compile(r'^CEPH_CLUSTER_')
 for key, value in os.environ.items():
   if ceph_cluster_ids_regex.search(key):
     CEPH_CLUSTERS[key.split("_")[2].strip().lower()] = value.strip().lower()
+ALIAS_RECAP = os.getenv('ALIAS_RECAP', 'true').strip().lower() in TRUE
 
 if not CEPH_CLUSTERS:
   CEPH_CLUSTERS['ceph'] = 'all prod'
@@ -82,7 +83,7 @@ ALWAYS_SHOW_CLUSTER_ID = os.getenv('ALWAYS_SHOW_CLUSTER_ID', 'false').strip().lo
 
 HELP = "help"
 AT_BOT = f"<@{SLACK_BOT_ID.lower()}>"
-ERROR_PREFIX = "Something went wrong "
+ERROR_PREFIX = "Something went wrong"
 
 CONNECTED_NOTIFICATION_CHANNELS = os.getenv('CONNECTED_NOTIFICATION_CHANNELS', None)
 
@@ -102,7 +103,7 @@ def cephbot_health():
 def ceph_command(CLUSTER, command, thread, modifier):
   ceph_conf = CEPH_CONF.replace("CLUSTER", CLUSTER)
   ceph_keyring = CEPH_KEYRING.replace("CLUSTER", CLUSTER).replace("CEPH_USER", CEPH_USER)
-  error_msg = f"{ERROR_PREFIX}while executing '{command}' on {CLUSTER}."
+  error_msg = f"{ERROR_PREFIX} while executing '{command}' on {CLUSTER}."
   return_error = None
   timeout = 5
   BASH_COMMAND = f"/bin/sh {SCRIPTS_FOLDER}/COMMAND --conf {ceph_conf} --user {CEPH_USER} --keyring {ceph_keyring}"
@@ -136,7 +137,7 @@ def ceph_command(CLUSTER, command, thread, modifier):
     print(f"CEPH_CONF: {ceph_conf}")
     print(f"CEPH_USER: {CEPH_USER}")
     print(f"CEPH_KEYRING: {ceph_keyring}")
-    return f"{ERROR_PREFIX}while connecting to {CLUSTER} using {ceph_conf}, {CEPH_USER}, {ceph_keyring}", None
+    return f"{ERROR_PREFIX} while connecting to {CLUSTER} using {ceph_conf}, {CEPH_USER}, {ceph_keyring}", None
 
   if command == "blocked requests":
     bash_command = BASH_COMMAND.replace("COMMAND","blocked_requests.sh")
@@ -227,6 +228,8 @@ def slack_parse(event: dict, say):
   modifier_count = 0
   find_id = False
   clusters_matched = []
+  using_alias = False
+  alias_count = 0
 
   if 'thread_ts' in event:
     thread = event['thread_ts']
@@ -286,6 +289,7 @@ def slack_parse(event: dict, say):
             cluster_match = True
             clusters_matched.append(CLUSTER)
             show_cluster_id = True
+            using_alias = True
       if cluster_match:
         command = command.split(cluster, 1)[1].strip().lower()
 
@@ -362,7 +366,14 @@ def slack_parse(event: dict, say):
           channel_response += f"\nCEPH_USER: {str(CEPH_USER)}"
           channel_response += f"\nCEPH_KEYRING: {str(CEPH_KEYRING).replace('CLUSTER', CLUSTER).replace('CEPH_USER', CEPH_USER)}"
           channel_response += f"\nAliases: {str(CEPH_CLUSTERS[CLUSTER])}"
+          channel_response += f"\nALIAS_RECAP: {str(ALIAS_RECAP)}"
           channel_response += f"\nSCRIPTS_FOLDER: {str(SCRIPTS_FOLDER)}"
+          # Modifier settings
+          channel_response += "\n\n### Modifier Settings ###"
+          channel_response += f"\nERRORS_ONLY_STRS: {str(ERRORS_ONLY_STRS)}"
+          channel_response += f"\nGREP: {str(GREP)}"
+          channel_response += f"\nGREPV: {str(GREPV)}"
+          channel_response += f"\nMODIFIER_RECAP: {str(MODIFIER_RECAP)}"
           # Events settings
           channel_response += "\n\n### Events Settings ###"
           channel_response += f"\nEVENTS_ENABLED: {str(EVENTS_ENABLED)}"
@@ -384,9 +395,12 @@ def slack_parse(event: dict, say):
         else:
           error = True
 
-      if modifier and (( channel_response and not channel_response.startswith(ERROR_PREFIX) ) or
-                       ( user_response and not user_response.startswith(ERROR_PREFIX) )):
-        modifier_count += 1
+      # Only need to count these variables if there aren't any errors. modifier_count supercedes alias_count.
+      if channel_response and not channel_response.startswith(ERROR_PREFIX):
+        if MODIFIER_RECAP and modifier:
+          modifier_count += 1
+        elif ALIAS_RECAP and using_alias:
+          alias_count += 1
 
       if channel_response and not ( event['channel_type'] == "im" and channel_response == TOO_LONG_MSG ):
         channel_response = f"```{channel_response}```"
@@ -430,7 +444,7 @@ def slack_parse(event: dict, say):
             as_user=True
           )
 
-  if MODIFIER_RECAP and modifier and cluster_count > 0:
+  if MODIFIER_RECAP and modifier:
     modifier_split = modifier.split(" ", 1)
     if modifier == "errors_only":
       response = f"{modifier_count}/{cluster_count} clusters are not healthy."
@@ -439,6 +453,14 @@ def slack_parse(event: dict, say):
     elif modifier_split[0] == GREPV:
       response = f"{modifier_count}/{cluster_count} clusters did not include `{modifier_split[1]}`."
 
+    say(
+      channel=channel,
+      thread_ts=initial_thread,
+      text=response,
+      as_user=True
+    )
+  elif ALIAS_RECAP and using_alias:
+    response = f"{alias_count}/{cluster_count} clusters responded without error."
     say(
       channel=channel,
       thread_ts=initial_thread,

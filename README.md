@@ -125,6 +125,10 @@ Can use CLUSTER and CEPH_USER as variables that will be replaced with responding
 ``` bash
 CEPH_KEYRING_FILE="/etc/ceph/CLUSTER.CEPH_USER.keyring"
 ```
+Show a recap of how many clusters were run when using an alias. This is useful to indicate that cephbot is done processing.
+``` bash
+ALIAS_RECAP="True"
+```
 
 ### Flask port
 This port is used for health checks
@@ -156,6 +160,10 @@ Specifically grep for/or remove responses based on a provided string.
 ``` bash
 GREP="GREP"
 GREPV="GREPV"
+```
+Show a recap of how many clusters were run and how many matched ERRORS_ONLY_STRS, GREP, or GREPV. This is useful to indicate that cephbot is done processing. This supercedes ALIAS_RECAP
+``` bash
+MODIFIERS_RECAP="True"
 ```
 If you have channels or person's DMs you would like to be notified that Cephbot has been started/restarted. Add the IDs as a space delimited list here.
 ``` bash
