@@ -222,15 +222,19 @@ def slack_parse(event: dict, say):
   for_cephbot = False
   events_run = False
   modifier = None
+  modifier_count = 0
   find_id = False
   clusters_matched = []
 
   if 'thread_ts' in event:
     thread = event['thread_ts']
+    initial_thread = thread
   elif ALWAYS_THREAD:
     thread = event['ts']
+    initial_thread = thread
   else:
     thread = None
+    initial_thread = event['ts']
   show_cluster_id = ALWAYS_SHOW_CLUSTER_ID
 
   if 'subtype' in event and event['subtype'] == "bot_message":
@@ -311,6 +315,7 @@ def slack_parse(event: dict, say):
           break
     commands.append(command)
 
+  cluster_count = len(clusters_matched)
   for CLUSTER in clusters_matched:
     # Only show one error message per cluster.
     error = False
@@ -377,6 +382,10 @@ def slack_parse(event: dict, say):
         else:
           error = True
 
+      if modifier and (( channel_response and not channel_response.startswith(ERROR_PREFIX) ) or
+                       ( user_response and not user_response.startswith(ERROR_PREFIX) )):
+        modifier_count += 1
+
       if channel_response and not ( event['channel_type'] == "im" and channel_response == TOO_LONG_MSG ):
         channel_response = f"```{channel_response}```"
         if show_cluster_id:
@@ -419,6 +428,22 @@ def slack_parse(event: dict, say):
             as_user=True
           )
 
+  if modifier and cluster_count > 0:
+    modifier_split = modifier.split(" ", 1)
+    if modifier == "errors_only":
+      response = f"{modifier_count}/{cluster_count} clusters are not healthy."
+    elif modifier_split[0] == GREP:
+      response = f"{modifier_count}/{cluster_count} clusters included `{modifier_split[1]}`."
+    elif modifier_split[0] == GREPV:
+      response = f"{modifier_count}/{cluster_count} clusters did not include `{modifier_split[1]}`."
+
+    say(
+      channel=channel,
+      thread_ts=initial_thread,
+      text=response,
+      as_user=True
+    )
+
 if __name__ == "__main__":
   try:
     handler.connect()
@@ -443,4 +468,3 @@ if __name__ == "__main__":
     exit()
 
   print("Good-Bye")
-
