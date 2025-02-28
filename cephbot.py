@@ -8,6 +8,7 @@ from flask import Flask, make_response
 import logging
 
 # read config variables
+TRUE = ('true', '1', 't')
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN', '')
 if SLACK_BOT_TOKEN == '':
   print("SLACK_BOT_TOKEN is not defined. This is needed to open a connection to the Slack API.")
@@ -62,6 +63,7 @@ if not CEPH_CLUSTERS:
 ERRORS_ONLY_STRS = os.getenv('ERRORS_ONLY_STRS', "ERRORS ERROR ERR PROBLEMS PROBLEM PROBS PROB UNHEALTHY WARNINGS WARNING WARN").strip().lower()
 GREP = os.getenv('GREP', "GREP").strip().lower()
 GREPV = os.getenv('GREPV', "GREPV").strip().lower()
+MODIFIER_RECAP = os.getenv('MODIFIER_RECAP', 'true').strip().lower() in TRUE
 
 SCRIPTS_FOLDER = os.getenv('SCRIPTS_FOLDER', './scripts/')
 
@@ -75,8 +77,8 @@ HELP_MSG = os.getenv('HELP_MSG', "health, health detail, status, osd stat, mon s
 HELP_URL = os.getenv('HELP_URL', "https://github.com/ceph/cephbot-slack/")
 TOO_LONG = os.getenv('TOO_LONG', 20)
 TOO_LONG_MSG = os.getenv('TOO_LONG_MSG', "Long responses get threaded.")
-ALWAYS_THREAD = os.getenv('ALWAYS_THREAD', 'false').lower() in ('true', '1', 't')
-ALWAYS_SHOW_CLUSTER_ID = os.getenv('ALWAYS_SHOW_CLUSTER_ID', 'false').lower() in ('true', '1', 't')
+ALWAYS_THREAD = os.getenv('ALWAYS_THREAD', 'false').strip().lower() in TRUE
+ALWAYS_SHOW_CLUSTER_ID = os.getenv('ALWAYS_SHOW_CLUSTER_ID', 'false').strip().lower() in TRUE
 
 HELP = "help"
 AT_BOT = f"<@{SLACK_BOT_ID.lower()}>"
@@ -428,7 +430,7 @@ def slack_parse(event: dict, say):
             as_user=True
           )
 
-  if modifier and cluster_count > 0:
+  if MODIFIER_RECAP and modifier and cluster_count > 0:
     modifier_split = modifier.split(" ", 1)
     if modifier == "errors_only":
       response = f"{modifier_count}/{cluster_count} clusters are not healthy."
