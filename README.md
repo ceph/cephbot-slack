@@ -52,11 +52,15 @@ To set up the bot in Slack, you can use this manifest
 ```
 
 ### Page: Basic Information
-On the Basic Information page you will need to generate an App-Level Token. Name the token whatever you'd like and give the token "connections:write". This will be used later as the SLACK_APP_TOKEN.
+On the Basic Information page you will need to generate an App-Level Token. Name the token whatever you'd like and give the token "connections:write". This will be used later as the SLACK_APP_TOKEN and starts with `xapp-`
 I also included a Ceph icon in this repo if you'd like to use it in the Display Information section on this page.
 
 ### Page: OAuth & Permissions
-After you install the app, you can get the "Bot User OAuth Token" on the OAuth & Permissions page. This will be used as the SLACK_BOT_TOKEN.
+After you install the app, you can get the "Bot User OAuth Token" on the OAuth & Permissions page. This will be used as the SLACK_BOT_TOKEN and starts with `xoxb-`.
+
+### Page: App Home
+Show Tabs -> Messages Tab -> Allow users to send Slash commands and messages from the messages tab
+Check the box if you want users to be able to DM directly with cephbot.
 
 ### SLACK_BOT_ID
 After installing the Slack Bot, you can retrieve the SLACK_BOT_ID from within Slack by looking at the details of the bot. Or a handful of other ways.
