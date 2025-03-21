@@ -127,7 +127,7 @@ def ceph_command(CLUSTER, command, thread, modifier):
     else:
       print(f"Unable to connect to the mon {mon_ip}:{mon_port}")
   if result != 0:
-    return f"{ERROR_PREFIX}while connecting to all of the mons. Please check the firewall.", None
+    return f"{ERROR_PREFIX} while connecting to all of the mons. Please check the firewall.", None
 
   try:
     # The timeout is currently ignored
@@ -321,6 +321,7 @@ def slack_parse(event: dict, say):
           break
     commands.append(command)
 
+  clusters_matched = sorted(clusters_matched)
   cluster_count = len(clusters_matched)
   for CLUSTER in clusters_matched:
     # Only show one error message per cluster.
